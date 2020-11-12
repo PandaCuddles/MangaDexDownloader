@@ -1,0 +1,15 @@
+altgraph==0.17
+async-timeout==3.0.1
+attrs==20.2.0
+beautifulsoup4==4.9.3
+certifi==2020.6.20
+chardet==3.0.4
+dnspython==1.16.0
+idna==2.10
+monotonic==1.5
+multidict==4.7.6
+requests==2.24.0
+six==1.15.0
+soupsieve==2.0.1
+urllib3==1.25.11
+yarl==1.5.1
