@@ -1,5 +1,5 @@
 # MangaDexDownloader
-Downloader for the mangadex online manga reader website
+* Downloader for the mangadex online manga reader website
 
 ## Python
 * Requires Python 3.6+ to run
