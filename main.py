@@ -2,7 +2,11 @@ import re
 import requests
 import time
 
+from os import name
+from os import system
 
+# Local modules
+import config
 from downloader import MangaDownloader
 
 
@@ -44,40 +48,22 @@ def get_input():
         print("No input: Exiting...")
         return None
 
-def check_connection():
-    """Check internet connection before starting the program"""
+def clear_screen():
+    # Windows screen clear
+    if name == 'nt': 
+        val = system('cls') 
+  
+    # Posix screen clear
+    else: 
+        val = system('clear') 
 
-    print("Connection test starting...")
-    try:
-        # Only retrieve page header information (speeds up the check)
-        requests.head("https://www.duckduckgo.com", allow_redirects=False)
-
-        print(f"Passed!")
-        return 1
-    except requests.ConnectionError:
-        print("Failed!")
-        return 0
-
-def multithread_config():
-    """Display option to use multithreading and return answer"""
-
-    answer = input("Do you want to enable mutlithreaded downloads (faster, experimental)? [Y/n] ") or "y"
-
-    yes = ["y", "ye", "yes", "yess", "yus"]
-    if answer.lower() in yes:
-        print("Multithreading enabled")
-        return True
-    else:
-        print("Multithreading disabled")
-        return False
-
-def start(url_list, threaded):
+def start(url_list, threaded, datasaver):
     """Create downloader objects from a list of manga urls and start the download for each"""
     t1 = time.perf_counter()
         
     for url in url_list:
             
-        m = MangaDownloader(url, threaded=threaded)
+        m = MangaDownloader(url, threaded=threaded, datasaver=datasaver)
         ok = m.initialize()
         if ok:
             m.start_download()
@@ -88,17 +74,24 @@ def start(url_list, threaded):
     print(f"Finished in {int(t2-t1)} seconds")
 
 def main():
-    threaded_config = multithread_config()
+    print()               # formatting
+    threaded_config = config.multithread()
+    print()               # formatting
+    datasaver_config = config.datasaver()
+    print("\nLoading...") # formatting
+    time.sleep(2.0)       # formatting
+    clear_screen()        # formatting
     url_list = get_input()
 
     if not url_list:
         return None
     else:
-        start(url_list, threaded_config)
+        start(url_list, threaded_config, datasaver_config)
 
 
 if __name__ == '__main__':
-    conn_ok = check_connection()
+    clear_screen()
+    conn_ok = config.check_connection()
 
     if conn_ok:
         main()

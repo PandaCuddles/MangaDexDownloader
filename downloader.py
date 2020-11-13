@@ -6,10 +6,9 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 from os import mkdir
 from os import path
-from requests.exceptions import ConnectionError
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from threading import Lock
-
-
 
 
 find_id        = re.compile("\/\d+\/*")
@@ -17,19 +16,29 @@ find_id        = re.compile("\/\d+\/*")
 
 class MangaDownloader():
     """Download manager for downloading a manga from MangaDex"""
-    def __init__(self, url, language="English", threaded=True):
+    def __init__(self, url, language="English", threaded=True, datasaver=True):
         self.mutex_initialize = Lock()
         self.mutex_total = Lock()
         self.mutex_downloaded = Lock()
 
+        self.MAX_IMAGE_THREADS = 10
         self.MAX_CHAPTER_THREADS = 10
         self.MAX_INITIALIZATION_THREADS = 10
 
         self.threaded = threaded
+        self.datasaver = datasaver
 
         self.language_list = {
-                              "English" : "gb",
-                              "French"  : "fr",
+                              "Chinese (simple)"      : "cn",
+                              "Chinese (traditional)" : "hk",
+                              "English"               : "gb",
+                              "French"                : "fr",
+                              "Indonesian"            : "id",
+                              "Polish"                : "pl",
+                              "Portuguese (Brazil)"   : "br",
+                              "Russian"               : "ru",
+                              "Spanish (Mexican)"     : "mx",
+                              "Spanish (Spain)"       : "es",
                              }
 
         self.name = None
@@ -61,11 +70,8 @@ class MangaDownloader():
         else:
             for chapter in chapter_list:
                 self.image_urls(chapter)
-        print(f"Retrieve image urls for: {self.name}")
+        print(f"Retrieved image urls for: {self.name}")
         print(f"Total images to download: {self.total_images}")
-
-        #with open(f"{self.name}.json", "w") as outfile:
-        #    json.dump(self.chapters, outfile)
 
         return 1
 
@@ -91,10 +97,10 @@ class MangaDownloader():
         
         manga_api_v2 = f"https://mangadex.org/api/v2/manga/{m_id}/chapters"
         
-        manga = requests.get(manga_api_v2)
+        response = requests.get(manga_api_v2, headers={"Connection":"close"})
 
-        if manga and manga.status_code == 200:
-            manga = json.loads(manga.text)
+        if response and response.status_code == 200:
+            manga = json.loads(response.text)
         else:
             raise Exception(f"Failed to initialize '{self.name}'")
         
@@ -129,11 +135,15 @@ class MangaDownloader():
         """Use the MangaDex api v2 to retrieve the list of image urls for each chapter"""
 
         chapter_api_v2 = f"https://mangadex.org/api/v2/chapter/{chapter_id}"
-        
-        chapter = requests.get(chapter_api_v2)
 
-        if chapter and chapter.status_code == 200:
-            chapter = json.loads(chapter.text)
+        # Datasaver provides links to compressed versions of the original images, reducing bandwidth usage and storage space
+        if self.datasaver:
+            chapter_api_v2 += "?saver=true"
+        
+        response = requests.get(chapter_api_v2, headers={"Connection":"close"})
+
+        if response and response.status_code == 200:
+            chapter = json.loads(response.text)
         else:
             raise Exception(f"Failed to initialize '{self.name}'")
         
@@ -143,6 +153,7 @@ class MangaDownloader():
         chapter_images  = chapter["data"]["pages"]
 
         chapter_info = {
+            "num":chapter_num,
             "server":server_url, 
             "hash":link_hash, 
             "images":chapter_images,
@@ -153,21 +164,42 @@ class MangaDownloader():
 
         self.update_total(len(chapter_images))
 
+    def threaded_image(self, image_file, image_url):
+        
+        try:
+            # Sets up retry configuration to prevent connection refusals from too many requests at once
+            session = requests.Session()
+            retry = Retry(connect=3, backoff_factor=0.5)
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+
+            response = session.get(image_url, headers={"Connection":"close"})
+            if response and response.status_code == 200:
+                with open(image_file, "wb") as img_file:
+                    img_file.write(response.content)
+
+        except Exception as e:
+            print(f"Error downloading {image_file}\n{e}")
+
+
     def threaded_chapter(self, chapter_folder, curr_chapter, base_url):
         """Downloads each image in a chapter"""
         if not path.isdir(chapter_folder):
                     mkdir(chapter_folder)
 
-        with requests.Session() as s:
+        # Downloads each image in a separate thread (Default: 10 threads running at a time)
+        with ThreadPoolExecutor(max_workers=self.MAX_IMAGE_THREADS) as executor:
+
             for image in curr_chapter["images"]:
+
                 image_url = f"{base_url}{image}"
-                image_file = f"{chapter_folder}{image}"
 
-                response = s.get(image_url)
+                # Name the image accordingly (based on 1, 2, 3, etc.)
+                image_file = f"{chapter_folder}{curr_chapter['images'].index(image)+1}{image[-4:]}"
 
-                if response and response.status_code == 200:
-                    with open(image_file, "wb") as img_file:
-                        img_file.write(response.content)
+                executor.submit(self.threaded_image, image_file, image_url)
+
 
 
     def threaded_download(self):
@@ -200,21 +232,25 @@ class MangaDownloader():
             if not path.isdir(chapter_folder):
                     mkdir(chapter_folder)
 
-            with requests.Session() as s:
-                for image in curr_chapter["images"]:
-                    image_url = f"{base_url}{image}"
-                    image_file = f"{chapter_folder}{image}"
 
-                    response = s.get(image_url)
+            for image in curr_chapter["images"]:
+                image_url = f"{base_url}{image}"
+                image_file = f"{chapter_folder}{image}"
 
-                    if response and response.status_code == 200:
-                        with open(image_file, "wb") as img_file:
-                            img_file.write(response.content)
+                response = requests.get(image_url, headers={"Connection":"close"})
+
+                if response and response.status_code == 200:
+                    with open(image_file, "wb") as img_file:
+                        img_file.write(response.content)
+                else:
+                    print(f"Error downloading chapter: {curr_chapter['num']} Image: {image}")
 
     def start_download(self):
         print("Download starting...")
+
         if self.threaded:
             self.threaded_download()
         else:
             self.regular_download()
+
         print(f"Downloaded: {self.name}")
