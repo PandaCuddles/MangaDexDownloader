@@ -5,7 +5,7 @@ from os import (name, system)
 from typing import NoReturn
 
 
-MAX_MANGA_THREADS = 6 # One more for the display function
+MAX_MANGA_THREADS = 2 # One more for the display function
 MAX_CHAPTER_THREADS = 10
 MAX_IMAGE_THREADS = 10
 MAX_INITIALIZATION_THREADS = 10
