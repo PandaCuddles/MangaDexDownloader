@@ -2,15 +2,17 @@ import re
 import requests
 import time
 
-from os import name
-from os import system
+from concurrent.futures import ThreadPoolExecutor
+from os import (name, system)
+from typing import NoReturn
+
 
 # Local modules
 import config
-from downloader import MangaDownloader
+from downloader import (display_status, add_to_total, MangaDownloader)
 
 
-def get_input():
+def get_input() -> list:
     print("\n\
                           #############################                              \n\
 ############################   MangaDex Downloader   ################################\n\
@@ -46,51 +48,49 @@ def get_input():
         return url_list
     else:
         print("No input: Exiting...")
-        return None
+        return []
 
-def clear_screen():
-    # Windows screen clear
-    if name == 'nt': 
-        val = system('cls') 
-  
-    # Posix screen clear
-    else: 
-        val = system('clear') 
 
-def start(url_list, threaded, datasaver):
+def start(url_list : list, threaded : bool, datasaver : bool) -> NoReturn:
     """Create downloader objects from a list of manga urls and start the download for each"""
     t1 = time.perf_counter()
+    with ThreadPoolExecutor(max_workers=config.MAX_MANGA_THREADS) as executor:
         
-    for url in url_list:
-            
-        m = MangaDownloader(url, threaded=threaded, datasaver=datasaver)
-        ok = m.initialize()
-        if ok:
-            m.start_download()
-        else:
-            print("Something went wrong")
-            
+        
+        # Update the total number of downloads before starting the display status function
+        # The display status function checks the total downloads vs number downloaded in order 
+        # to know when to stop
+        for i in range(len(url_list)):
+            add_to_total()
+
+        executor.submit(display_status)
+
+        for url in url_list:
+            m = MangaDownloader(url, threaded=threaded, datasaver=datasaver)
+            executor.submit(m.initialize)
+
     t2 = time.perf_counter()
     print(f"Finished in {int(t2-t1)} seconds")
+    
 
-def main():
+def main() -> NoReturn:
     print()               # formatting
     threaded_config = config.multithread()
     print()               # formatting
     datasaver_config = config.datasaver()
     print("\nLoading...") # formatting
     time.sleep(2.0)       # formatting
-    clear_screen()        # formatting
+    config.clear_screen() # formatting
     url_list = get_input()
 
     if not url_list:
-        return None
+        pass
     else:
         start(url_list, threaded_config, datasaver_config)
 
 
 if __name__ == '__main__':
-    clear_screen()
+    config.clear_screen()
     conn_ok = config.check_connection()
 
     if conn_ok:

@@ -1,6 +1,17 @@
 import requests
+import time
 
-def check_connection():
+from os import (name, system)
+from typing import NoReturn
+
+
+MAX_MANGA_THREADS = 6 # One more for the display function
+MAX_CHAPTER_THREADS = 10
+MAX_IMAGE_THREADS = 10
+MAX_INITIALIZATION_THREADS = 10
+
+
+def check_connection() -> int:
     """Check internet connection before starting the program"""
 
     print("Connection test starting...")
@@ -14,7 +25,7 @@ def check_connection():
         print("Failed!")
         return 0
 
-def multithread():
+def multithread() -> bool:
     """Display option to use multithreading and return answer"""
 
     answer = input("Do you want to enable mutlithreaded downloads (faster, experimental)? [Y/n] ") or "y"
@@ -27,7 +38,7 @@ def multithread():
         print("Multithreading disabled")
         return False
 
-def datasaver():
+def datasaver() -> bool:
     """Display option to use mangadex datasaver and return answer"""
 
     answer = input("Do you want to enable datasaver for downloads (stable, recommended)? [Y/n] ") or "y"
@@ -39,3 +50,37 @@ def datasaver():
     else:
         print("Datasaver disabled")
         return False
+
+def clear_screen() -> NoReturn:
+    # Windows screen clear
+    if name == 'nt': 
+        val = system('cls') 
+  
+    # Posix screen clear
+    else: 
+        val = system('clear') 
+
+def print_status(status_dict : dict, finished, started, chpt_dl) -> NoReturn:
+    clear_screen()
+    print("\n\
+                          #############################                              \n\
+############################   MangaDex Downloader   ################################\n\
+#                         #############################                             #\n\
+#                                                                                   #\n\
+#    Input list of mangadex manga urls: (press enter after each url)                #\n\
+#                                                                                   #\n\
+#    Input format example:  https://mangadex.org/title/#####                        #\n\
+#                           https://mangadex.org/title/#####/<manga_name>           #\n\
+#                           etc...                                                  #\n\
+#                                                                                   #\n\
+#    Type 'exit' and press enter to exit the program                                #\n\
+#                                                                                   #\n\
+#####################################################################################")
+    print(f"Finished: {finished} Started: {started}")
+    if status_dict:
+        for name, status in status_dict.items():
+            print(f"Downloading {name[:20]:<20}: {status}%")
+    else:
+        print("Downloading manga info and starting downloads...Standby")
+        print(f"Chapter info downloaded: {chpt_dl}")
+    time.sleep(0.5)
