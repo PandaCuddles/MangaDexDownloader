@@ -198,9 +198,7 @@ class MangaDownloader():
             if chapters[i]["chapter"] == "":
                 chapters[i]["chapter"] = "0"
 
-        # Sorts the chapters by chapter number (low to high)
-        chapter_list = sorted(chapter_list, key=lambda ch: float(ch["chapter"]))
-        
+
         # Goes through a process of filtering out duplicates and
         # leaving the chapters with the most views
         filtered_dict = {}
