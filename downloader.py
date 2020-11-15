@@ -61,6 +61,8 @@ def display_status() -> NoReturn:
     while finished < started:
         config.print_status(status_dict, finished, started, chapters_dld, chapters_tot)
 
+    config.print_status(status_dict, finished, started, chapters_dld, chapters_tot)
+
 
 chapters_tot = 0
 chapters_dld = 0
@@ -106,46 +108,6 @@ class MangaDownloader():
         self.downloaded_images = 0
 
 
-    def initialize(self) -> int:
-        """Get chapter ids and img urls for each chapter"""
-
-        # Get list of chapter ids
-        chapter_list = self.chapter_info()
-        
-        if not chapter_list:
-            print(f"Failed to initialize      : '{self.name}'")
-            return 0
-        
-        # Download the info for each chapter in a separate thread (threading: faster, but possibly less stable)
-        if self.threaded:
-            with ThreadPoolExecutor(max_workers=config.MAX_CHAPTER_THREADS) as executor:
-                for chapter in chapter_list:
-                    executor.submit(self.image_urls, chapter)
-
-        # Download the info for each chapter one by one (no threading: slower, but possibly more stable)
-        else:
-            for chapter in chapter_list:
-                self.image_urls(chapter)
-
-        # Start download after initialization
-        self.start_download()
-
-        add_to_finished()
-        return 1
-
-
-    def start_download(self) -> NoReturn:
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            executor.submit(self.status)
-
-            if self.threaded:
-                executor.submit(self.threaded_download)
-
-            else:
-                executor.submit(self.regular_download)
-
-
     def update_chapters(self, chapter_num : str, chapter_info : dict) -> NoReturn:
         """Provides a threadsafe way to update the dictionary of chapter information"""
 
@@ -169,6 +131,45 @@ class MangaDownloader():
         self.downloaded_images += update
         #print(f"Total: {self.total_images} Downloaded: {self.downloaded_images}")
         self.mutex_downloaded.release()
+
+
+    def initialize(self) -> int:
+        """Get chapter ids and img urls for each chapter"""
+
+        # Get list of chapter ids
+        chapter_list = self.chapter_info()
+        
+        if not chapter_list:
+            print(f"Failed to initialize      : '{self.name}'")
+            return 0
+        
+        # Download the info for each chapter in a separate thread (threading: faster, but possibly less stable)
+        if self.threaded:
+            with ThreadPoolExecutor(max_workers=config.MAX_CHAPTER_THREADS) as executor:
+                for chapter in chapter_list:
+                    executor.submit(self.image_urls, chapter)
+
+        # Download the info for each chapter one by one (no threading: slower, but possibly more stable)
+        else:
+            for chapter in chapter_list:
+                self.image_urls(chapter)
+
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            executor.submit(self.status)
+
+            # Start download after initialization
+            executor.submit(self.start_download)
+
+        add_to_finished()
+        return 1
+
+
+    def start_download(self) -> NoReturn:
+        if self.threaded:
+            self.threaded_download()
+        else:
+            self.threaded_download()
 
 
     def chapter_info(self) -> list:
@@ -384,9 +385,4 @@ class MangaDownloader():
 
             curr_status = self.percent_done()
         
-        # Get the last percent value, so the status display will show 100%, rather than, e.g., 99% or 95%
-        curr_status = self.percent_done()
         update_completion(self.name, curr_status)
-
-
-
