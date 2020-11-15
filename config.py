@@ -60,7 +60,7 @@ def clear_screen() -> NoReturn:
     else: 
         val = system('clear') 
 
-def print_status(status_dict : dict, finished, started, chpt_dl) -> NoReturn:
+def print_status(status_dict : dict, finished, started, chapters_dl, chapters_tot) -> NoReturn:
     clear_screen()
     print("\n\
                           #############################                              \n\
@@ -76,11 +76,11 @@ def print_status(status_dict : dict, finished, started, chpt_dl) -> NoReturn:
 #    Type 'exit' and press enter to exit the program                                #\n\
 #                                                                                   #\n\
 #####################################################################################")
-    print(f"Finished: {finished} Started: {started}")
+    print(f"Started: {started} Finished: {finished}")
     if status_dict:
         for name, status in status_dict.items():
-            print(f"Downloading {name[:20]:<20}: {status}%")
+            print(f"Downloading {name[:15]:<15}: {status}%")
     else:
-        print("Downloading manga info and starting downloads...Standby")
-        print(f"Chapter info downloaded: {chpt_dl}")
+        #print("Downloading manga info and starting downloads...Standby")
+        print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot}")
     time.sleep(0.5)

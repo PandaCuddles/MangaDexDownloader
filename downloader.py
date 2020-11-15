@@ -56,10 +56,13 @@ def display_status() -> NoReturn:
     global started
     global finished
     global chapters_dld
+    global chapters_tot
 
     while finished < started:
-        config.print_status(status_dict, finished, started, chapters_dld)
+        config.print_status(status_dict, finished, started, chapters_dld, chapters_tot)
 
+
+chapters_tot = 0
 chapters_dld = 0
 m_ch = Lock()
 
@@ -106,11 +109,8 @@ class MangaDownloader():
     def initialize(self) -> int:
         """Get chapter ids and img urls for each chapter"""
 
-        #print("Initializing...")
-
         # Get list of chapter ids
         chapter_list = self.chapter_info()
-        #print(f"Retrieved chapter info for: '{self.name}'")
         
         if not chapter_list:
             print(f"Failed to initialize      : '{self.name}'")
@@ -167,6 +167,7 @@ class MangaDownloader():
 
         self.mutex_downloaded.acquire()
         self.downloaded_images += update
+        #print(f"Total: {self.total_images} Downloaded: {self.downloaded_images}")
         self.mutex_downloaded.release()
 
 
@@ -228,6 +229,9 @@ class MangaDownloader():
         title = title.lower().replace(" ", "_")
         
         self.name = title
+
+        global chapters_tot
+        chapters_tot = len(chapters_filtered)
 
         return chapters_filtered
 
@@ -381,7 +385,9 @@ class MangaDownloader():
             time.sleep(0.5)
 
             curr_status = self.percent_done()
-
+        
+        # Get the last percent value, so the status display will show 100%, rather than, e.g., 99% or 95%
+        curr_status = self.percent_done()
         update_completion(self.name, curr_status)
 
 
