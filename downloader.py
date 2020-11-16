@@ -43,8 +43,8 @@ def add_to_finished():
     
 
 def update_completion(name, status):
-    """Adds current download info to a dictionary of currently downloading manga
-       (used for displaying the download of multiple manga at once)"""
+    """Adds current download info to a dictionary of finished and/or currently downloading manga
+       (used for displaying the download status of all the finished and/or currently downloading manga)"""
     mutex.acquire()
     global status_dict
     status_dict[name] = status
@@ -129,7 +129,6 @@ class MangaDownloader():
 
         self.mutex_downloaded.acquire()
         self.downloaded_images += update
-        #print(f"Total: {self.total_images} Downloaded: {self.downloaded_images}")
         self.mutex_downloaded.release()
 
 
@@ -149,19 +148,27 @@ class MangaDownloader():
                 for chapter in chapter_list:
                     executor.submit(self.image_urls, chapter)
 
-        # Download the info for each chapter one by one (no threading: slower, but possibly more stable)
+        # Download the info for each chapter one by one (no threading: much slower, but possibly more stable)
         else:
             for chapter in chapter_list:
                 self.image_urls(chapter)
 
         
         with ThreadPoolExecutor(max_workers=2) as executor:
+            # Have a status updater running while the manga is downloading
             executor.submit(self.status)
 
             # Start download after initialization
             executor.submit(self.start_download)
 
         add_to_finished()
+
+        # Reset the download setup info before starting next manga download
+        global chapters_tot
+        global chapters_dld
+        chapters_tot = 0
+        chapters_dld = 0
+
         return 1
 
 
@@ -215,6 +222,7 @@ class MangaDownloader():
                 filtered_dict[x_chapter] = x
 
         # Create a new list with the ids of the filtered chapters
+        # TODO: have this just go through the dictionary values, rather than both key and val
         chapters_filtered = []
         for key, val in filtered_dict.items():
             chapters_filtered.append(val["id"])
@@ -229,6 +237,7 @@ class MangaDownloader():
         
         self.name = title
 
+        # Update number of chapters needed to get image urls for (needed for download setup status display)
         global chapters_tot
         chapters_tot = len(chapters_filtered)
 
@@ -262,14 +271,16 @@ class MangaDownloader():
         else:
             raise Exception(f"Failed to initialize '{self.name}'")
         
-        server_url     = chapter["data"]["server"]
-        link_hash      = chapter["data"]["hash"]
+        server_url      = chapter["data"]["server"]
+        link_hash       = chapter["data"]["hash"]
         chapter_images  = chapter["data"]["pages"]
+
         if chapter['data']['chapter'] == "":
             chapter_num = f"Chapter_0"
         else:
-            chapter_num    = f"Chapter_{chapter['data']['chapter'].replace('.', '_')}"
+            chapter_num = f"Chapter_{chapter['data']['chapter'].replace('.', '_')}"
         
+        # Udates total number of images the manga contains (needed for displaying percent completion of the download)
         self.update_total(len(chapter_images))
 
         chapter_info = {
@@ -279,6 +290,7 @@ class MangaDownloader():
                         "num":chapter_num,
                         }
 
+        # Updates number of chapters that have had img urls downloaded for (for download setup status display)
         chapt_add()
 
         # Thread safe function, allowing multithreaded initialization
@@ -314,8 +326,9 @@ class MangaDownloader():
     def threaded_chapter(self, chapter_folder : str, curr_chapter : dict, base_url : str) -> NoReturn:
         """Sends each image in a chapter into a separate thread to be downloaded"""
 
+        # Creates the chapter directory for the current chapter being downloaded
         if not path.isdir(chapter_folder):
-                    mkdir(chapter_folder)
+            mkdir(chapter_folder)
 
         # Downloads each image in a separate thread (Default: 10 threads running at a time)
         with ThreadPoolExecutor(max_workers=config.MAX_IMAGE_THREADS) as executor:
@@ -371,11 +384,13 @@ class MangaDownloader():
 
 
     def percent_done(self) -> int:
+        """ Returns percentage of the number of downloaded images vs the total images to download"""
         percent = (self.downloaded_images/self.total_images) * 100
         return int(percent)
 
 
     def status(self) -> NoReturn:
+        """Updates the percent downloaded status for the current manga"""
 
         curr_status= self.percent_done()
         while(curr_status < 100):

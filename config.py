@@ -14,7 +14,7 @@ MAX_INITIALIZATION_THREADS = 10
 def check_connection() -> int:
     """Check internet connection before starting the program"""
 
-    print("Connection test starting...")
+    print("Internet connection test starting...")
     try:
         # Only retrieve page header information (speeds up the check)
         requests.head("https://www.duckduckgo.com", allow_redirects=False)
@@ -61,6 +61,8 @@ def clear_screen() -> NoReturn:
         val = system('clear') 
 
 def print_status(status_dict : dict, finished, started, chapters_dl, chapters_tot) -> NoReturn:
+    """Display download setup status and download status for the manga downloads"""
+
     clear_screen()
     print("\n\
                           #############################                              \n\
@@ -80,7 +82,13 @@ def print_status(status_dict : dict, finished, started, chapters_dl, chapters_to
     if status_dict:
         for name, status in status_dict.items():
             print(f"Downloading {name[:15]:<15}: {status}%")
+        if chapters_dl < chapters_tot:
+            print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot} (setup stage)")
     else:
-        #print("Downloading manga info and starting downloads...Standby")
-        print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot}")
+        
+        # Display download setup status after initial chapter count has been downloaded
+        if chapters_dl < chapters_tot:
+            print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot} (setup stage)")
+        else:
+            print("Starting initial setup stage...")
     time.sleep(0.5)
