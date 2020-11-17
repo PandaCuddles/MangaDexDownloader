@@ -4,6 +4,7 @@ import time
 
 from concurrent.futures import ThreadPoolExecutor
 from os import (name, system)
+from sys import exit
 from typing import NoReturn
 
 
