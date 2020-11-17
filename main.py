@@ -9,11 +9,12 @@ from typing import NoReturn
 
 # Local modules
 import config
-from downloader import (display_status, add_to_total, MangaDownloader)
+from downloader import (display_status, update_status, MangaDownloader)
 
 
-def get_input() -> list:
-    print("\n\
+def get_input(threaded : str, datasaver : str, language : str) -> list:
+    config.clear_screen()
+    print(f"\n\
                           #############################                              \n\
 ############################   MangaDex Downloader   ################################\n\
 #                         #############################                             #\n\
@@ -24,7 +25,12 @@ def get_input() -> list:
 #                           https://mangadex.org/title/#####/<manga_name>           #\n\
 #                           etc...                                                  #\n\
 #                                                                                   #\n\
+#    Options:                                                                       #\n\
+#            Threaded: {threaded:<8}   Datasaver: {datasaver:<8}   Language: {language:<14}    #\n\
+#                                                                                   #\n\
+#                                                                                   #\n\
 #    Type 'exit' and press enter to exit the program                                #\n\
+#                                                                                   #\n\
 #                                                                                   #\n\
 #####################################################################################")
     
@@ -36,7 +42,7 @@ def get_input() -> list:
     while temp:
         if temp == "exit":
             print("Exiting...")
-            return None
+            exit(1)
 
         if check.search(temp):
             url_list.append(temp)
@@ -47,11 +53,10 @@ def get_input() -> list:
     if url_list:
         return url_list
     else:
-        print("No input: Exiting...")
         return []
 
 
-def start(url_list : list, threaded : bool, datasaver : bool) -> NoReturn:
+def start(url_list : list, threaded : bool, datasaver : bool, language : str, language_id : str) -> NoReturn:
     """Create downloader objects from a list of manga urls and start the download for each"""
     t1 = time.perf_counter()
     with ThreadPoolExecutor(max_workers=config.MAX_MANGA_THREADS) as executor:
@@ -61,12 +66,12 @@ def start(url_list : list, threaded : bool, datasaver : bool) -> NoReturn:
         # The display status function checks the total downloads vs number downloaded in order 
         # to know when to stop
         for i in range(len(url_list)):
-            add_to_total()
+            update_status(to_total=True)
 
         executor.submit(display_status)
 
         for url in url_list:
-            m = MangaDownloader(url, threaded=threaded, datasaver=datasaver)
+            m = MangaDownloader(url, threaded=threaded, datasaver=datasaver, language=language, language_id=language_id)
             executor.submit(m.initialize)
 
     t2 = time.perf_counter()
@@ -78,15 +83,17 @@ def main() -> NoReturn:
     threaded_config = config.multithread()
     print()               # formatting
     datasaver_config = config.datasaver()
+    print()
+    language_config = config.language()
     print("\nLoading...") # formatting
     time.sleep(2.0)       # formatting
     config.clear_screen() # formatting
-    url_list = get_input()
 
-    if not url_list:
-        pass
-    else:
-        start(url_list, threaded_config, datasaver_config)
+    while True:
+        url_list = get_input(config.ENABLE(threaded_config), config.ENABLE(datasaver_config), language_config[2])
+        if url_list:
+            start(url_list, threaded_config, datasaver_config, language_config[2], language_config[1])
+            break
 
 
 if __name__ == '__main__':

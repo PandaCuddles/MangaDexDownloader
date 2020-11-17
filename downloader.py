@@ -17,95 +17,138 @@ find_id        = re.compile("\/\d+\/*")
 
 
 mutex = Lock()
-m_dl = Lock() # For updating the total number of downloads
+m_tot = Lock() # For updating the total number of downloads
 m_fin= Lock() # For updating the number of finished downloads
+m_setup = Lock() # For updating how much chapter info has been downloaded during setup
 
 status_dict = {} # Contains list of all currently downloading manga
 
-started = 0
-finished = 0
+manga_started = 0
+manga_finished = 0
+
+chapter_info_total = 0
+chapter_info_dl     = 0
 
 
-# update_started and update_finished are used to tell the display_status function when to stop (letting the program exit)
-def add_to_total():
-    """Used to keep track of the total number of manga being downloaded"""
-    m_dl.acquire()
-    global started
-    started += 1
-    m_dl.release()
+threaded = "Enabled"
+datasaver = "Enabled"
+language = "English"
 
-def add_to_finished():
-    """Updates the total number of finished downloads"""
-    m_fin.acquire()
-    global finished
-    finished += 1
-    m_fin.release()
+def update_status(
+                to_total : bool = None, 
+                to_finished : bool = None, 
+                name : str = None, 
+                status : int = None, 
+                setup_progress : bool = None
+                ) -> NoReturn:
+    """Used to update the different program stats that are displayed while downloading:
+
+    The started and finished global variables are used to tell the display status thread when to exit and
+    return to the main thread, as well as to display the total number of finished downloads
     
-
-def update_completion(name, status):
-    """Adds current download info to a dictionary of finished and/or currently downloading manga
-       (used for displaying the download status of all the finished and/or currently downloading manga)"""
-    mutex.acquire()
-    global status_dict
-    status_dict[name] = status
-    mutex.release()
+    to_total: 
+            Used to keep track of the total number of manga being downloaded
+    
+    to_finished:
+            Updates the total number of finished downloads
+    
+    name, status:
+            Adds current download info to a dictionary of finished and/or currently downloading manga
+            (used for displaying the download status of all the finished and/or currently downloading manga)
+    
+    setup_progress:
+            Updates the amount of chapter info that has been downloaded during each manga's download setup
+    
+    """
+    if to_total:
+        m_tot.acquire()
+        global manga_started
+        manga_started += 1
+        m_tot.release()
+    
+    if to_finished:
+        m_fin.acquire()
+        global manga_finished
+        manga_finished += 1
+        m_fin.release()
+    
+    if name and status:
+        mutex.acquire()
+        global status_dict
+        status_dict[name] = status
+        mutex.release()
+    
+    if setup_progress:
+        m_setup.acquire()
+        global chapter_info_dl
+        chapter_info_dl += 1
+        m_setup.release()
 
 
 def display_status() -> NoReturn:
     global status_dict
-    global started
-    global finished
-    global chapters_dld
-    global chapters_tot
+    global manga_started
+    global manga_finished
+    global chapter_info_total
+    global chapter_info_dl
+    global threaded
+    global datasaver
+    global language
 
-    while finished < started:
-        config.print_status(status_dict, finished, started, chapters_dld, chapters_tot)
+    while manga_finished < manga_started:
+        config.print_status(
+                        status_dict, 
+                        manga_finished, 
+                        manga_started, 
+                        chapter_info_dl, 
+                        chapter_info_total, 
+                        threaded=threaded, 
+                        datasaver=datasaver,
+                        language=language)
 
-    config.print_status(status_dict, finished, started, chapters_dld, chapters_tot)
-
-
-chapters_tot = 0
-chapters_dld = 0
-m_ch = Lock()
-
-
-def chapt_add():
-    m_ch.acquire()
-    global chapters_dld
-    chapters_dld += 1
-    m_ch.release()
+    config.print_status(
+                    status_dict, 
+                    manga_finished, 
+                    manga_started, 
+                    chapter_info_dl, 
+                    chapter_info_total, 
+                    threaded=threaded, 
+                    datasaver=datasaver, 
+                    language=language)
 
 
 class MangaDownloader():
     """Download manager for downloading a manga from MangaDex"""
 
-    def __init__(self, url : str, language : str = "English", threaded : bool = True, datasaver : bool = True):
+    def __init__(self, url : str, threaded : bool = True, datasaver : bool = True, language : str = "English", language_id : str = "gb"):
+
+        self.name = None
+        self.url  = url
+
+        self.language    = language
+        self.language_id = language_id
+        self.threaded    = threaded
+        self.datasaver   = datasaver
+
+        self.chapters = {}
+        self.total_images = 0
+        self.downloaded_images = 0
+
         self.mutex_initialize = Lock()
         self.mutex_total = Lock()
         self.mutex_downloaded = Lock()
 
-        self.threaded = threaded
-        self.datasaver = datasaver
+        self.options_set()
 
-        self.language_list = {
-                              "Chinese (simple)"      : "cn",
-                              "Chinese (traditional)" : "hk",
-                              "English"               : "gb",
-                              "French"                : "fr",
-                              "Indonesian"            : "id",
-                              "Polish"                : "pl",
-                              "Portuguese (Brazil)"   : "br",
-                              "Russian"               : "ru",
-                              "Spanish (Mexican)"     : "mx",
-                              "Spanish (Spain)"       : "es",
-                             }
 
-        self.name = None
-        self.url = url
-        self.language = self.language_list[language]
-        self.chapters = {}
-        self.total_images = 0
-        self.downloaded_images = 0
+    def options_set(self):
+        """Set global variables to program options for use in the status display"""
+        global threaded
+        global datasaver
+        global language
+        threaded = config.ENABLE(self.threaded)
+        datasaver = config.ENABLE(self.datasaver)
+        language = self.language
 
 
     def update_chapters(self, chapter_num : str, chapter_info : dict) -> NoReturn:
@@ -153,7 +196,6 @@ class MangaDownloader():
             for chapter in chapter_list:
                 self.image_urls(chapter)
 
-        
         with ThreadPoolExecutor(max_workers=2) as executor:
             # Have a status updater running while the manga is downloading
             executor.submit(self.status)
@@ -161,13 +203,14 @@ class MangaDownloader():
             # Start download after initialization
             executor.submit(self.start_download)
 
-        add_to_finished()
+        # Update number of finished downloads
+        update_status(to_finished=True)
 
         # Reset the download setup info before starting next manga download
-        global chapters_tot
-        global chapters_dld
-        chapters_tot = 0
-        chapters_dld = 0
+        global chapter_info_total
+        global chapter_info_dl
+        chapter_info_total = 0
+        chapter_info_dl = 0
 
         return 1
 
@@ -198,7 +241,7 @@ class MangaDownloader():
         # Add chapters with specified language to dictionary
         chapters     = []
         for chapter in chapter_list:
-            if chapter["language"] == self.language:
+            if chapter["language"] == self.language_id:
                 chapters.append(chapter)
 
         # Replaces empty chapter numbers with '0'
@@ -222,9 +265,8 @@ class MangaDownloader():
                 filtered_dict[x_chapter] = x
 
         # Create a new list with the ids of the filtered chapters
-        # TODO: have this just go through the dictionary values, rather than both key and val
         chapters_filtered = []
-        for key, val in filtered_dict.items():
+        for val in filtered_dict.values():
             chapters_filtered.append(val["id"])
 
         title = manga["data"]["chapters"][0]["mangaTitle"]
@@ -238,8 +280,8 @@ class MangaDownloader():
         self.name = title
 
         # Update number of chapters needed to get image urls for (needed for download setup status display)
-        global chapters_tot
-        chapters_tot = len(chapters_filtered)
+        global chapter_info_total
+        chapter_info_total= len(chapters_filtered)
 
         return chapters_filtered
 
@@ -291,7 +333,7 @@ class MangaDownloader():
                         }
 
         # Updates number of chapters that have had img urls downloaded for (for download setup status display)
-        chapt_add()
+        update_status(setup_progress=True)
 
         # Thread safe function, allowing multithreaded initialization
         self.update_chapters(chapter_num, chapter_info)
@@ -395,9 +437,9 @@ class MangaDownloader():
         curr_status= self.percent_done()
         while(curr_status < 100):
 
-            update_completion(self.name, curr_status)
+            update_status(name=self.name, status=curr_status)
             time.sleep(0.5)
 
             curr_status = self.percent_done()
         
-        update_completion(self.name, curr_status)
+        update_status(name=self.name, status=curr_status)
