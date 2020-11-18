@@ -1,12 +1,10 @@
+"""Main module for the MangaDex Downloader program"""
 import re
-import requests
+import sys
 import time
 
 from concurrent.futures import ThreadPoolExecutor
-from os import (name, system)
-from sys import exit
 from typing import NoReturn
-
 
 # Local modules
 import config
@@ -14,6 +12,7 @@ from downloader import (display_status, update_status, MangaDownloader)
 
 
 def get_input(threaded : str, datasaver : str, language : str) -> list:
+    """Get list of MangaDex urls from the user or exit the program if 'exit' is typed"""
     config.clear_screen()
     print(f"\n\
                           #############################                              \n\
@@ -34,72 +33,88 @@ def get_input(threaded : str, datasaver : str, language : str) -> list:
 #                                                                                   #\n\
 #                                                                                   #\n\
 #####################################################################################")
-    
-    check = re.compile("[^\n]+mangadex.org/title/\d+[^\n]*")
+
+    check = re.compile(r"[^\n]+mangadex.org/title/\d+[^\n]*")
 
     url_list = []
     temp = input("")
-    
+
     while temp:
         if temp == "exit":
             print("Exiting...")
-            exit(1)
+            sys.exit(1)
 
         if check.search(temp):
             url_list.append(temp)
         else:
             print("INVALID URL")
         temp = input("")
-    
+
     if url_list:
         return url_list
-    else:
-        return []
 
 
-def start(url_list : list, threaded : bool, datasaver : bool, language : str, language_id : str) -> NoReturn:
+def start(
+          url_list : list,
+          threaded : bool,
+          datasaver : bool,
+          language : str,
+          language_id : str) -> NoReturn:
     """Create downloader objects from a list of manga urls and start the download for each"""
-    t1 = time.perf_counter()
+    time_start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=config.MAX_MANGA_THREADS) as executor:
-        
-        
+
+
         # Update the total number of downloads before starting the display status function
-        # The display status function checks the total downloads vs number downloaded in order 
+        # The display status function checks the total downloads vs number downloaded in order
         # to know when to stop
-        for i in range(len(url_list)):
+        for _ in range(len(url_list)):
             update_status(to_total=True)
 
         executor.submit(display_status)
 
         for url in url_list:
-            m = MangaDownloader(url, threaded=threaded, datasaver=datasaver, language=language, language_id=language_id)
-            executor.submit(m.initialize)
+            downloader = MangaDownloader(
+                                         url,
+                                         threaded=threaded,
+                                         datasaver=datasaver,
+                                         language=language,
+                                         language_id=language_id)
+            executor.submit(downloader.initialize)
 
-    t2 = time.perf_counter()
-    print(f"Finished in {int(t2-t1)} seconds")
-    
+    time_finish = time.perf_counter()
+    print(f"Finished in {int(time_finish-time_start)} seconds")
+
 
 def main() -> NoReturn:
+    """Main function for the MangaDex Download program"""
     print()               # formatting
-    threaded_config = config.multithread()
+    threaded_config = config.multithread_option()
     print()               # formatting
-    datasaver_config = config.datasaver()
+    datasaver_config = config.datasaver_option()
     print()
-    language_config = config.language()
+    language_config = config.language_option()
     print("\nLoading...") # formatting
     time.sleep(2.0)       # formatting
     config.clear_screen() # formatting
 
     while True:
-        url_list = get_input(config.ENABLE(threaded_config), config.ENABLE(datasaver_config), language_config[2])
+        url_list = get_input(
+                             config.ENABLE(threaded_config),
+                             config.ENABLE(datasaver_config),
+                             language_config[2])
         if url_list:
-            start(url_list, threaded_config, datasaver_config, language_config[2], language_config[1])
+            start(
+                  url_list,
+                  threaded_config,
+                  datasaver_config,
+                  language_config[2],
+                  language_config[1])
             break
 
 
 if __name__ == '__main__':
     config.clear_screen()
-    conn_ok = config.check_connection()
 
-    if conn_ok:
+    if config.check_connection():
         main()

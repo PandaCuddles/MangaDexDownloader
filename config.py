@@ -1,14 +1,19 @@
+"""Config module that contains:
+                                Configuration functions
+
+                                Configuration constants"""
 import re
-import requests
 import time
 
-from os import (name, system)
+from os import (name as sys_name, system)
 from typing import NoReturn
 
+import requests
 
-MAX_MANGA_THREADS = 2 # One more for the display function
+
+MAX_MANGA_THREADS   = 2 # One more for the display function
 MAX_CHAPTER_THREADS = 10
-MAX_IMAGE_THREADS = 10
+MAX_IMAGE_THREADS   = 10
 MAX_INITIALIZATION_THREADS = 10
 
 ENABLE = lambda x: "Enabled" if x else "Disabled"
@@ -23,7 +28,8 @@ LANGUAGE_LIST = [
                 ("Portuguese (Brazil)"   , "br", "Portuguese (b)"),
                 ("Russian"               , "ru", "Russian"       ),
                 ("Spanish (Mexican)"     , "mx", "Spanish (m)"   ),
-                ("Spanish (Spain)"       , "es", "Spanish (s)"   ) ]
+                ("Spanish (Spain)"       , "es", "Spanish (s)"   ),
+                ("Vietnamese"            , "vn", "Vietnamese"    ) ]
 
 
 def check_connection() -> int:
@@ -34,77 +40,77 @@ def check_connection() -> int:
         # Only retrieve page header information (speeds up the check)
         requests.head("https://www.duckduckgo.com", allow_redirects=False)
 
-        print(f"Passed!")
+        print("Passed!")
         return 1
     except requests.ConnectionError:
         print("Failed!")
         return 0
 
 
-def multithread() -> bool:
+def multithread_option() -> bool:
     """Display option to use multithreading and return answer"""
 
-    answer = input("Do you want to enable mutlithreaded downloads (faster, experimental)? [Y/n] ") or "y"
+    question = "Do you want to enable mutlithreaded downloads (faster, experimental)? [Y/n] "
+    answer = input(question) or "y"
 
     yes = ["y", "ye", "yes", "yess", "yus"]
     if answer.lower() in yes:
         print("Multithreading enabled")
         return True
-    else:
-        print("Multithreading disabled")
-        return False
+
+    print("Multithreading disabled")
+    return False
 
 
-def datasaver() -> bool:
+def datasaver_option() -> bool:
     """Display option to use mangadex datasaver and return answer"""
 
-    answer = input("Do you want to enable datasaver for downloads (stable, recommended)? [Y/n] ") or "y"
+    question = "Do you want to enable datasaver for downloads (stable, recommended)? [Y/n] "
+    answer = input(question) or "y"
 
     yes = ["y", "ye", "yes", "yess", "yus"]
     if answer.lower() in yes:
         print("Datasaver enabled")
         return True
-    else:
-        print("Datasaver disabled")
-        return False
+
+    print("Datasaver disabled")
+    return False
 
 
-def language() -> str:
+def language_option() -> str:
     """Display option for what language to use for downloads"""
-    global LANGUAGE_LIST
 
-    check_answer = re.compile("\d+")
+    check_answer = re.compile(r"\d+")
 
-    for index in range(len(LANGUAGE_LIST)):
-        print(f"{index:<3}: {LANGUAGE_LIST[index][0]}")
+    for enum in enumerate(LANGUAGE_LIST):
+        print(f"{enum[0]:<3}: {enum[1][0]}")
 
     answer = input("\nPlease select your langauge: ")
 
     if check_answer.search(answer) and int(answer) in range(len(LANGUAGE_LIST)):
         return LANGUAGE_LIST[int(answer)]
-    else:
-        return LANGUAGE_LIST[0]
+
+    return LANGUAGE_LIST[0]
 
 
 def clear_screen() -> NoReturn:
+    """Clear terminal screen"""
     # Windows screen clear
-    if name == 'nt': 
-        val = system('cls') 
-  
+    if sys_name == 'nt':
+        _ = system('cls')
+
     # Posix screen clear
-    else: 
-        val = system('clear') 
+    else:
+        _ = system('clear')
 
 
 def print_status(
-                status_dict : dict, 
-                finished : int, 
-                started : int, 
-                chapters_dl : int, 
-                chapters_tot : int, 
-                threaded : str = "Enabled", 
-                datasaver : str = "Enabled",
-                language : str = "English") -> NoReturn:
+                status_dict  : dict,
+                finished     : int,
+                started      : int,
+                chapters_dl  : int,
+                chapters_tot : int,
+                options      : list) -> NoReturn:
     """Display download setup status and download status for the manga downloads"""
 
     clear_screen()
@@ -120,7 +126,7 @@ def print_status(
 #                           etc...                                                  #\n\
 #                                                                                   #\n\
 #    Options:                                                                       #\n\
-#            Threaded: {threaded:<8}   Datasaver: {datasaver:<8}   Language: {language:<14}    #\n\
+#            Threaded: {options[0]:<8}   Datasaver: {options[1]:<8}   Language: {options[2]:<14}    #\n\
 #                                                                                   #\n\
 #                                                                                   #\n\
 #    Type 'exit' and press enter to exit the program                                #\n\
@@ -134,7 +140,7 @@ def print_status(
         if chapters_dl < chapters_tot:
             print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot} (setup stage)")
     else:
-        
+
         # Display download setup status after initial chapter count has been downloaded
         if chapters_dl < chapters_tot:
             print(f"Chapter info downloaded: {chapters_dl} of {chapters_tot} (setup stage)")

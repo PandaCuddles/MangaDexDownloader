@@ -1,19 +1,22 @@
 import json
 import re
-import requests
 
 import time
 
 from concurrent.futures import ThreadPoolExecutor
 from os import (mkdir, path)
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+
+from urllib3.util.retry import Retry
 from threading import Lock
 from typing import NoReturn
+from requests.adapters import HTTPAdapter
+
+import requests
+
 
 import config
 
-find_id        = re.compile("\/\d+\/*")
+find_id        = re.compile(r"\/\d+\/*")
 
 
 mutex = Lock()
@@ -21,106 +24,105 @@ m_tot = Lock() # For updating the total number of downloads
 m_fin= Lock() # For updating the number of finished downloads
 m_setup = Lock() # For updating how much chapter info has been downloaded during setup
 
-status_dict = {} # Contains list of all currently downloading manga
+STATUS_DICT = {} # Contains list of all currently downloading manga
 
-manga_started = 0
-manga_finished = 0
+MANGA_STARTED = 0
+MANGA_FINISHED = 0
 
-chapter_info_total = 0
-chapter_info_dl     = 0
+CHAPTER_INFO_TOTAL = 0
+CHAPTER_INFO_DL     = 0
 
+OPTIONS = []
 
-threaded = "Enabled"
-datasaver = "Enabled"
-language = "English"
 
 def update_status(
-                to_total : bool = None, 
-                to_finished : bool = None, 
-                name : str = None, 
-                status : int = None, 
-                setup_progress : bool = None
-                ) -> NoReturn:
+                  to_total       : bool = None,
+                  to_finished    : bool = None,
+                  name           : str = None,
+                  status         : int = None,
+                  setup_progress : bool = None) -> NoReturn:
     """Used to update the different program stats that are displayed while downloading:
 
-    The started and finished global variables are used to tell the display status thread when to exit and
-    return to the main thread, as well as to display the total number of finished downloads
-    
-    to_total: 
+    The started and finished global variables are used to tell the display status thread
+    when to exit and return to the main thread, as well as to display the total number of
+    finished downloads
+
+    to_total:
             Used to keep track of the total number of manga being downloaded
-    
+
     to_finished:
             Updates the total number of finished downloads
-    
+
     name, status:
-            Adds current download info to a dictionary of finished and/or currently downloading manga
-            (used for displaying the download status of all the finished and/or currently downloading manga)
-    
+            Adds current download info to a dictionary of finished and/or
+            currently downloading manga
+            (used for displaying the download status of all the finished
+            and/or currently downloading manga)
+
     setup_progress:
-            Updates the amount of chapter info that has been downloaded during each manga's download setup
-    
+            Updates the amount of chapter info that has been downloaded
+            during each manga's download setup
     """
     if to_total:
         m_tot.acquire()
-        global manga_started
-        manga_started += 1
+        global MANGA_STARTED
+        MANGA_STARTED += 1
         m_tot.release()
-    
+
     if to_finished:
         m_fin.acquire()
-        global manga_finished
-        manga_finished += 1
+        global MANGA_FINISHED
+        MANGA_FINISHED += 1
         m_fin.release()
-    
+
     if name and status:
         mutex.acquire()
-        global status_dict
-        status_dict[name] = status
+        global STATUS_DICT
+        STATUS_DICT[name] = status
         mutex.release()
-    
+
     if setup_progress:
         m_setup.acquire()
-        global chapter_info_dl
-        chapter_info_dl += 1
+        global CHAPTER_INFO_DL
+        CHAPTER_INFO_DL += 1
         m_setup.release()
 
 
 def display_status() -> NoReturn:
-    global status_dict
-    global manga_started
-    global manga_finished
-    global chapter_info_total
-    global chapter_info_dl
-    global threaded
-    global datasaver
-    global language
+    global STATUS_DICT
+    global MANGA_STARTED
+    global MANGA_FINISHED
+    global CHAPTER_INFO_TOTAL
+    global CHAPTER_INFO_DL
+    global OPTIONS
 
-    while manga_finished < manga_started:
+    while MANGA_FINISHED < MANGA_STARTED:
         config.print_status(
-                        status_dict, 
-                        manga_finished, 
-                        manga_started, 
-                        chapter_info_dl, 
-                        chapter_info_total, 
-                        threaded=threaded, 
-                        datasaver=datasaver,
-                        language=language)
+                            STATUS_DICT,
+                            MANGA_FINISHED,
+                            MANGA_STARTED,
+                            CHAPTER_INFO_DL,
+                            CHAPTER_INFO_TOTAL,
+                            options=OPTIONS)
 
     config.print_status(
-                    status_dict, 
-                    manga_finished, 
-                    manga_started, 
-                    chapter_info_dl, 
-                    chapter_info_total, 
-                    threaded=threaded, 
-                    datasaver=datasaver, 
-                    language=language)
+                        STATUS_DICT,
+                        MANGA_FINISHED,
+                        MANGA_STARTED,
+                        CHAPTER_INFO_DL,
+                        CHAPTER_INFO_TOTAL,
+                        options=OPTIONS)
 
 
 class MangaDownloader():
     """Download manager for downloading a manga from MangaDex"""
 
-    def __init__(self, url : str, threaded : bool = True, datasaver : bool = True, language : str = "English", language_id : str = "gb"):
+    def __init__(self,
+                 url         : str,
+                 threaded    : bool = True,
+                 datasaver   : bool = True,
+                 language    : str = "English",
+                 language_id : str = "gb"):
 
         self.name = None
         self.url  = url
@@ -143,12 +145,12 @@ class MangaDownloader():
 
     def options_set(self):
         """Set global variables to program options for use in the status display"""
-        global threaded
-        global datasaver
-        global language
-        threaded = config.ENABLE(self.threaded)
-        datasaver = config.ENABLE(self.datasaver)
-        language = self.language
+
+        global OPTIONS
+        OPTIONS.append(config.ENABLE(self.threaded))
+        OPTIONS.append(config.ENABLE(self.datasaver))
+        OPTIONS.append(self.language)
+
 
 
     def update_chapters(self, chapter_num : str, chapter_info : dict) -> NoReturn:
@@ -165,10 +167,10 @@ class MangaDownloader():
         self.mutex_total.acquire()
         self.total_images += update
         self.mutex_total.release()
-    
+
 
     def update_completed(self, update : int) -> NoReturn:
-        """Provides a threadsafe way to update the number of completed image downloads for the manga"""
+        """Provides a threadsafe way to update the number of completed image downloads"""
 
         self.mutex_downloaded.acquire()
         self.downloaded_images += update
@@ -180,18 +182,20 @@ class MangaDownloader():
 
         # Get list of chapter ids
         chapter_list = self.chapter_info()
-        
+
         if not chapter_list:
             print(f"Failed to initialize      : '{self.name}'")
             return 0
-        
-        # Download the info for each chapter in a separate thread (threading: faster, but possibly less stable)
+
+        # Download the info for each chapter in a separate thread
+        # (threading: faster, but possibly less stable)
         if self.threaded:
             with ThreadPoolExecutor(max_workers=config.MAX_CHAPTER_THREADS) as executor:
                 for chapter in chapter_list:
                     executor.submit(self.image_urls, chapter)
 
-        # Download the info for each chapter one by one (no threading: much slower, but possibly more stable)
+        # Download the info for each chapter one by one
+        # (no threading: much slower, but possibly more stable)
         else:
             for chapter in chapter_list:
                 self.image_urls(chapter)
@@ -207,24 +211,25 @@ class MangaDownloader():
         update_status(to_finished=True)
 
         # Reset the download setup info before starting next manga download
-        global chapter_info_total
-        global chapter_info_dl
-        chapter_info_total = 0
-        chapter_info_dl = 0
+        global CHAPTER_INFO_TOTAL
+        global CHAPTER_INFO_DL
+        CHAPTER_INFO_TOTAL = 0
+        CHAPTER_INFO_DL = 0
 
         return 1
 
 
     def start_download(self) -> NoReturn:
+        """Starts the manga download in either threaded mode or regular mode """
         if self.threaded:
             self.threaded_download()
         else:
-            self.threaded_download()
+            self.regular_download()
 
 
     def chapter_info(self) -> list:
         """Use the MangaDex api to retrieve all the chapter information for a manga"""
-        
+
         m_id = find_id.search(self.url)[0].replace("/", "")
         manga_api_v2 = f"https://mangadex.org/api/v2/manga/{m_id}/chapters"
         response = requests.get(manga_api_v2, headers={"Connection":"close"})
@@ -233,7 +238,7 @@ class MangaDownloader():
             manga = json.loads(response.text)
         else:
             raise Exception(f"Failed to initialize '{self.name}'")
-        
+
         # Start chapter extraction from mangadex manga api dictionary
         chapter_list = manga["data"]["chapters"]
 
@@ -276,12 +281,13 @@ class MangaDownloader():
             title = title.replace(c, "")
 
         title = title.lower().replace(" ", "_")
-        
+
         self.name = title
 
-        # Update number of chapters needed to get image urls for (needed for download setup status display)
-        global chapter_info_total
-        chapter_info_total= len(chapters_filtered)
+        # Update number of chapters needed to get image urls for
+        # (needed for download setup status display)
+        global CHAPTER_INFO_TOTAL
+        CHAPTER_INFO_TOTAL= len(chapters_filtered)
 
         return chapters_filtered
 
@@ -291,7 +297,8 @@ class MangaDownloader():
 
         chapter_api_v2 = f"https://mangadex.org/api/v2/chapter/{chapter_id}"
 
-        # Datasaver provides links to compressed versions of the original images, reducing bandwidth usage and storage space
+        # Datasaver provides links to compressed versions of the original images
+        # (reduces bandwidth usage and storage space)
         if self.datasaver:
             chapter_api_v2 += "?saver=true"
 
@@ -302,32 +309,29 @@ class MangaDownloader():
         session.mount('http://', adapter)
         session.mount('https://', adapter)
         response = session.get(
-                                chapter_api_v2, 
+                                chapter_api_v2,
                                 headers={"Connection":"close"}
                                 )
-        
+
         #response = requests.get(chapter_api_v2, headers={"Connection":"close"})
 
         if response and response.status_code == 200:
             chapter = json.loads(response.text)
         else:
             raise Exception(f"Failed to initialize '{self.name}'")
-        
+
         server_url      = chapter["data"]["server"]
         link_hash       = chapter["data"]["hash"]
         chapter_images  = chapter["data"]["pages"]
 
-        if chapter['data']['chapter'] == "":
-            chapter_num = f"Chapter_0"
-        else:
-            chapter_num = f"Chapter_{chapter['data']['chapter'].replace('.', '_')}"
-        
+        chapter_num = f"Chapter_{chapter['data']['chapter'].replace('.', '_')}"
+
         # Udates total number of images the manga contains (needed for displaying percent completion of the download)
         self.update_total(len(chapter_images))
 
         chapter_info = {
-                        "server":server_url, 
-                        "hash":link_hash, 
+                        "server":server_url,
+                        "hash":link_hash,
                         "images":chapter_images,
                         "num":chapter_num,
                         }
@@ -341,16 +345,15 @@ class MangaDownloader():
 
     def threaded_image(self, image_file : str, image_url : str) -> NoReturn:
         """Downloads an image into a specified file"""
-        
-        try:
-            # Sets up retry configuration to prevent connection refusals from too many requests at once
-            session = requests.Session()
+
+        # Sets up retry configuration to prevent connection refusals from too many requests at once
+        with requests.Session() as session:
             retry = Retry(connect=3, backoff_factor=0.5)
             adapter = HTTPAdapter(max_retries=retry)
             session.mount('http://', adapter)
             session.mount('https://', adapter)
             response = session.get(
-                                    image_url, 
+                                    image_url,
                                     headers={"Connection":"close"}
                                    )
 
@@ -358,11 +361,6 @@ class MangaDownloader():
                 with open(image_file, "wb") as img_file:
                     img_file.write(response.content)
                 self.update_completed(1)
-            else:
-                print(f"Failed to download {image_file}")
-
-        except Exception as e:
-            print(f"Error downloading {image_file}\n{e}")
 
 
     def threaded_chapter(self, chapter_folder : str, curr_chapter : dict, base_url : str) -> NoReturn:
@@ -441,5 +439,5 @@ class MangaDownloader():
             time.sleep(0.5)
 
             curr_status = self.percent_done()
-        
+
         update_status(name=self.name, status=curr_status)
