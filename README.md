@@ -4,12 +4,12 @@
 ## Releases
 * Latest release: [here](https://github.com/PandaCuddles/MangaDexDownloader/releases)
 
-## Datasaver (On)
+## Datasaver (on)
 * This is the default option for MDD
 * Using the datasaver option will give you a much smaller download size, saving bandwidth and space
 * Turning datasaver off will download uncompressed images (experimental)
 
-## Datasaver (Off): Caution
+## Datasaver (off): Caution
 * Downloading the uncompressed images can lead to manga downloads that are Gigabytes in size
 * For uncompressed downloads, the current downloader might freeze or break during download
 * MangaDex allows for uncompressed image uploads and creates two image versions (uncompressed and compressed)
