@@ -1,5 +1,5 @@
 # MangaDexDownloader (MDD)
-* Downloader for the mangadex online manga reader website
+* Downloader for the MangaDex online manga reader website
 
 ## Releases
 * Latest release: [here](https://github.com/PandaCuddles/MangaDexDownloader/releases)
