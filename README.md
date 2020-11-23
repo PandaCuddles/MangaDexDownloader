@@ -10,9 +10,10 @@
 * Turning datasaver off will download uncompressed images (experimental)
 
 ## Uncompressed Downloads: Caution
-* MangaDex does not compress any uploaded manga images
 * Downloading the uncompressed images can lead to manga downloads that are Gigabytes in size
 * For uncompressed downloads, the current downloader might freeze or break during download
+* MangaDex allows for uncompressed image uploads and creates two image versions (uncompressed and compressed)
+* Compressed images are accessed through the MangaDex datasaver option
 
 ## Python (dev/testing)
 * Requires Python 3.6+ to run 
